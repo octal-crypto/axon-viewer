@@ -3,7 +3,7 @@
     <head>
         <title>Axons</title>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=700, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+        <meta name="viewport" content="width=1000"> 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
 
@@ -27,7 +27,7 @@
                 margin-right: auto;
                 display: block;
             }
-            #canvas { margin-bottom: 20px; height:700px }
+            #canvas { margin-bottom: 20px; height:1000px; }
             input:hover, select:hover, select:active, button:hover {
                 border-width:2px;
                 border-color: white
@@ -44,15 +44,15 @@
                 color:inherit;
                 margin: 0px 0px 15px 0px;
                 height: 60px;
-                max-width:24%;
+                max-width:25%;
                 width:100%;
                 border-radius: 7px;
                 display: inline-block;
                 box-sizing: border-box;
                 border-style: outset;
             }
-            .settings { width:700px; margin: 0 auto 0 auto}
-            #fsInput, #recordGif { max-width: 46%; box-sizing: border-box; }
+            .settings { width:1000px; margin: 0 auto 0 auto}
+            #fsInput, #recordGif { max-width: 45%; box-sizing: border-box; }
             #idInput:invalid { border-color: red; }
             input:focus, select:focus { outline-width: 0; }
             label { display: inline-block;text-align: right; margin-right: 10px;}
@@ -241,7 +241,7 @@
                     arts=[];
                     p5.pixelDensity(1),
                     p5.colorMode(p5.RGB);
-                    var p5Canvas = p5.createCanvas(700,700);
+                    var p5Canvas = p5.createCanvas(1000,1000);
                     // var p5Canvas = p5.createCanvas(Math.min(1e3,Math.max(p5.windowWidth,500)),Math.min(1e3,Math.max(p5.windowHeight,500)));
                     p5Canvas.parent("canvas");
                     pS=Math.max(Math.round(Math.min(1e3,p5.windowWidth)/200),3);
