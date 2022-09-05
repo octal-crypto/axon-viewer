@@ -249,7 +249,6 @@
                     p5.colorMode(p5.RGB);
                     var p5Canvas = p5.createCanvas(1000,1000);
                     p5Canvas.parent("canvas");
-                    pS=Math.max(Math.round(Math.min(1e3,p5.windowWidth)/200),3);
                     for(var t=0;t<TOTAL;t++)arts.push(new Art);
                     p5.frameRate(10);
                     nextArt(p5);
