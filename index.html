@@ -3,7 +3,7 @@
     <head>
         <title>Axons</title>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=1000, user-scalable=0">
+        <meta name="viewport" content="width=700, user-scalable=0">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
 
@@ -13,8 +13,7 @@
         <script src="https://octal.art/ccapture.js/src/download.js"></script>
         <style>
             body {
-                width:1000px;
-                font-size: 35px;
+                font-size: 30px;
                 text-align: center;
                 font-family: monospace;
                 color:white;
@@ -27,7 +26,7 @@
                 margin-right: auto;
                 display: block;
             }
-            #canvas { height: 1000px; margin-bottom: 20px; }
+            #canvas { margin-bottom: 20px; height:700px }
             input:hover, select:hover, select:active, button:hover {
                 border-width:2px;
                 border-color: white
@@ -36,27 +35,27 @@
             input, select, option, button  {
                 font-family: monospace;
                 color:white;
-                font-size:35px;
+                font-size:30px;
                 border-width:1px;
                 padding:2px; 
                 border-color: white;
                 background-color:black;
                 color:inherit;
                 margin: 0px 0px 15px 0px;
-                height: 59px;
-                max-width:220px;
+                height: 60px;
+                max-width:177px;
                 width:100%;
                 border-radius: 7px;
                 display: inline-block;
                 box-sizing: border-box;
                 border-style: outset;
             }
-            #fsInput, #recordGif { max-width: 420px; }
+            #fsInput, #recordGif { max-width: 340px; }
             #idInput:invalid { border-color: red; }
             input:focus, select:focus { outline-width: 0; }
             label { display: inline-block;text-align: right; margin-right: 10px;}
             #p5_loading {display: inline-block; margin-top: 10px;}
-            #info { display: none;width: 350px; }
+            #info { display: none; width: 340px; }
             #paused { margin-top:35px; display:none }
         </style>
     </head>
@@ -240,7 +239,8 @@
                     arts=[];
                     p5.pixelDensity(1),
                     p5.colorMode(p5.RGB);
-                    var p5Canvas = p5.createCanvas(Math.min(1e3,Math.max(p5.windowWidth,500)),Math.min(1e3,Math.max(p5.windowHeight,500)));
+                    var p5Canvas = p5.createCanvas(700,700);
+                    // var p5Canvas = p5.createCanvas(Math.min(1e3,Math.max(p5.windowWidth,500)),Math.min(1e3,Math.max(p5.windowHeight,500)));
                     p5Canvas.parent("canvas");
                     pS=Math.max(Math.round(Math.min(1e3,p5.windowWidth)/200),3);
                     for(var t=0;t<TOTAL;t++)arts.push(new Art);
