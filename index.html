@@ -137,7 +137,7 @@
             // Generates a URL query string from the inputs
             function refreshQuery(replace) {
                 var query = [idInput, fsInput, frameInput, speedInput].reduce(function(p,c) {
-                    var show = inputValid(c) && c.value != (c.getAttribute("data-default") ?? c.getAttribute("data-min") ?? 0);
+                    var show = inputValid(c) && c.value != (c.getAttribute("data-default") ?? 0);
                     return p + (show ? ((p?"&":"?") + c.id.slice(0,-5) + "=" + parseInt(c.value)):"");
                 }, "");
                 var url = location.pathname + query;
