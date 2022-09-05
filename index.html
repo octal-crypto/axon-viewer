@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Axons</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=540, user-scalable=0">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+
+        <!-- Use our CCapture fork that supports aborting GIF conversions -->
+        <script src="https://octal-crypto.github.io/ccapture.js/build/CCapture.min.js"></script>
+        <script src="https://octal-crypto.github.io/ccapture.js/src/gif.js"></script>
+        <script src="https://octal-crypto.github.io/ccapture.js/src/download.js"></script>
+        <style>
+            body {
+                font-size: 20px;
+                text-align: center;
+                font-family: monospace;
+                color:white;
+                background-color: black;
+                margin: 0;
+                padding: 10px 0 0 0;
+            }
+            canvas {
+                margin-left: auto;
+                margin-right: auto;
+                display: block;
+            }
+            #canvas { height: 1000px; }
+            input:hover, select:hover, select:active, button:hover {
+                border-width:2px;
+                border-color: white
+            }
+            button:active { border-width: 3px; }
+            input, select, option, button  {
+                font-family: monospace;
+                color:white;
+                font-size:20px;
+                border-width:1px;
+                padding:2px; 
+                border-color: white;
+                background-color:black;
+                color:inherit;
+                margin: 0px 0px 8px 0px;
+                height: 37px;
+                max-width:100px;
+                width:100%;
+                border-radius: 7px;
+                display: inline-block;
+                box-sizing: border-box;
+                border-style: outset;
+            }
+            /* button { max-width: 215px; } */
+            #fsInput, #recordGif { max-width: 215px; }
+            #idInput:invalid { border-color: red; }
+            input:focus, select:focus { outline-width: 0; }
+            label { display: inline-block;text-align: right; margin-right: 10px;}
+            #p5_loading {display: inline-block; margin-top: 10px;}
+            #info { display: none;width: 205px; }
+            #paused { margin-top:35px; display:none }
+        </style>
+    </head>
+    <body>
+        <div class="settings">
+            <label for="idInput">Axon ID:</label>
+            <input id="idInput" type="number" value="0" min="0" data-min="0">
+        </div>
+        <br>
+        <div id="canvas"></div>
+        <br>
+        <div class="settings">
+            <span id="info">Recording (0%)</span>
+            <button id="fsInput" data-min="0" data-max="1">Fullscreen</button>
+            <button id="recordGif">Record GIF</button>
+            <br>
+            Frame: 
+            <input type="number" id="frameInput" value="0">
+            <button id="frameBackwards">&lt;&lt;</button>
+            <button id="frameForwards">&gt;&gt;</button>
+            <br>
+            Speed: 
+            <input type="number" id="speedInput" value="1" data-default="1" >
+            <button id="speedDown">&lt;&lt;</button>
+            <button id="speedUp">&gt;&gt;</button>
+            <div id="paused">Rendering paused to improve performance</div>
+        </div>
+        <br>
+        <script>
+            // DOM elements
+            var settingsDivs = Array.from(document.getElementsByClassName("settings"));
+            var idInput = document.getElementById("idInput");
+            var fsInput = document.getElementById("fsInput");
+            var recordGifButton = document.getElementById("recordGif");
+            var infoSpan = document.getElementById("info");
+            var pausedDiv = document.getElementById("paused");
+            var frameInput = document.getElementById("frameInput");
+            var speedInput = document.getElementById("speedInput");
+            var speedUp = document.getElementById("speedUp");
+            var speedDown = document.getElementById("speedDown");
+            var frameForwards = document.getElementById("frameForwards");
+            var frameBackwards = document.getElementById("frameBackwards");
+            function inputValid(i) {
+                return i && (!i.hasAttribute("data-min") || parseInt(i.value) >= parseInt(i.getAttribute("data-min"))) &&
+                            (!i.hasAttribute("data-max") || parseInt(i.value) <= parseInt(i.getAttribute("data-max")));
+            }
+
+            // Snowcrash ETH contract
+            var web3 = new Web3(new Web3.providers.HttpProvider("https://rpc.flashbots.net"));
+            var snowcrash = new web3.eth.Contract([
+            {
+                "name": "_tokenIdToAxonNumber", "type": "function", "stateMutability": "view",
+                "inputs": [{"internalType": "uint256","name": "_tokenId","type": "uint256"}],
+                "outputs": [{"internalType": "uint256","name": "","type": "uint256"}]},
+            ], "0xc7ad37edae28d8cd04bbe4a6ecf072314faed1be");
+
+            // Updates inputs with values from the URL query string
+            function refreshInputs() {
+
+                // Reset all inputs
+                [idInput, fsInput, frameInput, speedInput].forEach(function(i) { i.value = i.getAttribute("data-default") ?? 0});
+
+                // Parse the query
+                var q = window.location.href.lastIndexOf("?");
+                if (q > -1) {
+                    var query = decodeURIComponent(window.location.href.slice(q+1));
+                    var settings = query.split("&");
+                    for (var i=0; i < settings.length; i++) {
+                        var setting = settings[i].split("=");
+
+                        // Update inputs with valid query values
+                        var input = document.getElementById(setting[0] + "Input");
+                        if (inputValid(input)) input.value = setting[1];
+                    }
+                }
+            }
+
+            // Generates a URL query string from the inputs
+            function refreshQuery(replace) {
+                var query = [idInput, fsInput, frameInput, speedInput].reduce(function(p,c) {
+                    var show = inputValid(c) && c.value != (c.getAttribute("data-default") ?? c.getAttribute("data-min") ?? 0);
+                    return p + (show ? ((p?"&":"?") + c.id.slice(0,-5) + "=" + parseInt(c.value)):"");
+                }, "");
+                var url = location.pathname + query;
+                if (replace) history.replaceState(url, null, url);
+                else if (query != history.state) history.pushState(url, null, url);
+            }
+
+            // Re-render when id changes
+            var p5js = null;
+            idInput.onchange = idInput.onmouseleave = function() {
+                if (inputValid(idInput) && tokenId != parseInt(idInput.value)) {
+                    refreshQuery();
+                    resketch();
+                }
+            }
+            function resketch() {
+                if (inputValid(idInput)) tokenId = parseInt(idInput.value);
+                snowcrash.methods._tokenIdToAxonNumber(tokenId).call().then(n => {
+                    axonNumber = parseInt(n);
+                    if (p5js) p5js.remove();
+                    p5js = new p5(sketch);
+                });
+            }
+            refreshInputs(); // Parse the URL query
+            refreshQuery(true); // Normalize the query in case it's invalid
+            refreshFullscreen(); 
+            resketch(); // initial sketch
+
+            // Setup GIF recording
+            var frames=0, recording=false, converting=false;
+            recordGifButton.onclick = function() {
+                // Start recording
+                if (!recording && !converting) {
+                    capturer = new CCapture( { format: 'gif', workersPath: './', framerate:10, quality:100, onProgress:
+                        function(progress) {infoSpan.textContent = "Converting (" + Math.round(progress * 100) + "%)"}});
+                    frames=0;
+                    recording = true;
+                }
+                // Done recording
+                else if (recording) {
+                    recording = false;
+                    converting = true;
+                    capturer.stop();
+
+                    // Stop rendering to improve GIF conversion performance
+                    p5js.remove();
+
+                    // Convert to GIF
+                    abort = capturer.save(function (blob) {
+                        converting = false;
+                        download(blob, "SN0WCR4SH-" + tokenId + ".gif", "image/gif");
+                        refreshUi();
+                        resketch();
+                    });
+                }
+                // Cancel GIF conversion
+                else if (converting)
+                {
+                    converting=false;
+                    abort();
+                    resketch();
+                }
+                refreshUi();
+
+                function refreshUi() {
+                    recordGifButton.textContent = recording ? "Stop Recording" : converting ? "Cancel Conversion" : "Record GIF";
+                    infoSpan.style = "display:" + ((recording || converting) ? "inline-block" : "none");
+                    fsInput.style = "display:" + ((recording || converting) ? "none" : "inline-block");
+                    pausedDiv.style = "display:" + (converting ? "block" : "none");
+                }
+            }
+
+            // Re-render on browser back button
+            window.addEventListener("popstate",
+                function(event) { refreshInputs(); refreshFullscreen(); resketch(); });
+
+            // Toggle full screen
+            fsInput.onclick = function() {
+                fsInput.value = (fsInput.value == "0" ? "1" : "0");
+                refreshFullscreen();
+                refreshQuery();
+            }
+            function refreshFullscreen() {
+                settingsDivs.forEach(d => d.style = "display:" + (fsInput.value == "0" ? "block" : "none"));
+            }
+
+            // Set frame and speed
+            frameInput.onchange = function() { crA.frame = parseInt(frameInput.value); refreshQuery();  }
+            frameForwards.onclick = function() { frameInput.value = crA.frame + 500; frameInput.onchange(); }
+            frameBackwards.onclick = function() { frameInput.value = crA.frame - 500; frameInput.onchange(); }
+            speedInput.onchange = function() { crA.rate = parseInt(speedInput.value); refreshQuery(); }
+            speedUp.onclick = function() { speedInput.value = crA.rate+1;  speedInput.onchange(); }
+            speedDown.onclick = function() { speedInput.value = crA.rate-1; speedInput.onchange(); }
+
+            // Axon NFT code
+            class Mx{constructor(t,r){this.rZ=t,this.cols=r,this.data=Array(this.rZ).fill().map((()=>Array(this.cols).fill(0)))}copy(){let t=new Mx(this.rZ,this.cols);for(let r=0;r<this.rZ;r++)for(let s=0;s<this.cols;s++)t.data[r][s]=this.data[r][s];return t}static fromArray(t){return new Mx(t.length,1).map(((r,s)=>t[s]))}static subtract(t,r){if(t.rZ===r.rZ&&t.cols===r.cols)return new Mx(t.rZ,t.cols).map(((s,a,i)=>t.data[a][i]-r.data[a][i]))}toArray(){let t=[];for(let r=0;r<this.rZ;r++)for(let s=0;s<this.cols;s++)t.push(this.data[r][s]);return t}rdz(){return this.map((t=>2*rng()-1))}add(t){if(t instanceof Mx){if(this.rZ!==t.rZ||this.cols!==t.cols)return;return this.map(((r,s,a)=>r+t.data[s][a]))}return this.map((r=>r+t))}static trp(t){return new Mx(t.cols,t.rZ).map(((r,s,a)=>t.data[a][s]))}static mtp(t,r){if(t.cols===r.rZ)return new Mx(t.rZ,r.cols).map(((s,a,i)=>{let o=0;for(let s=0;s<t.cols;s++)o+=t.data[a][s]*r.data[s][i];return o}))}mtp(t){if(t instanceof Mx){if(this.rZ!==t.rZ||this.cols!==t.cols)return;return this.map(((r,s,a)=>r*t.data[s][a]))}return this.map((r=>r*t))}map(t){for(let r=0;r<this.rZ;r++)for(let s=0;s<this.cols;s++){let a=this.data[r][s];this.data[r][s]=t(a,r,s)}return this}static map(t,r){return new Mx(t.rZ,t.cols).map(((s,a,i)=>r(t.data[a][i],a,i)))}serialize(){return JSON.stringify(this)}static dsr(t){"string"==typeof t&&(t=JSON.parse(t));let r=new Mx(t.rZ,t.cols);return r.data=t.data,r}}"undefined"!=typeof module&&(module.exports=Mx)
+            class AAF{constructor(i,t){this.func=i,this.dfunc=t}}let sigmoid=new AAF((i=>1/(1+Math.exp(-i))),(i=>i*(1-i)));class NNN{constructor(i,t,s){(this.seed=axonNumber,rng=srand(this.seed),this.i_n=i,this.h_n=t,this.o_n=s,this.w_hi=new Mx(this.h_n,this.i_n),this.w_ho=new Mx(this.o_n,this.h_n),this.w_hi.rdz(),this.w_ho.rdz(),this.bias_h=new Mx(this.h_n,1),this.bias_o=new Mx(this.o_n,1),this.bias_h.rdz(),this.bias_o.rdz()),this.setLearningRate(),this.setAAF()}predict(i){let t=Mx.fromArray(i),s=Mx.mtp(this.w_hi,t);s.add(this.bias_h),s.map(this.a_f.func);let e=Mx.mtp(this.w_ho,s);return e.add(this.bias_o),e.map(this.a_f.func),e.toArray()}setLearningRate(i=.1){this.l_r=i}setAAF(i=sigmoid){this.a_f=i}serialize(){return JSON.stringify(this)}static dsr(i){"string"==typeof i&&(i=JSON.parse(i));let t=new NNN(i.i_n,i.h_n,i.o_n);return t.w_hi=Mx.dsr(i.w_hi),t.w_ho=Mx.dsr(i.w_ho),t.bias_h=Mx.dsr(i.bias_h),t.bias_o=Mx.dsr(i.bias_o),t.l_r=i.l_r,t}copy(){return new NNN(this)}mtT(i){function t(t){return rng()<i?t+p5js.randomGaussian(0,.1):t}this.w_hi.map(t),this.w_ho.map(t),this.bias_h.map(t),this.bias_o.map(t)}}class Art{constructor(t){this.score=0,this.fitness=0,this.frame=parseInt(frameInput.value),this.rate=parseInt(speedInput.value),this.brain=t?t.copy():new NNN(1,8,38)}cvC(t,r,e){return[Math.round(255*t[0]+.35*r*this.ouT[35]),Math.round(255*t[1]+.35*r*this.ouT[36]),Math.round(255*t[2])+.35*r*this.ouT[37]]}gCN(t,r,e){t%=35,t=Math.round((Math.sin(t)+1)/2*55)-1,this.brain.seed%3==0?t=-1*Math.abs(t):this.brain.seed%3==1&&(t=Math.abs(t));return this.ouT[6+3*t]?[this.ouT[6+3*t],this.ouT[6+4*t],this.ouT[6+5*t]]:[-1,-1,-1]}show(t,r,e){pF||(pF=p5js.color(0),p5js.fill(pF));var i,n=0+Math.round(5*this.ouT[0]),a=Math.max(this.ouT[1]+3e-7*t,.01)*t/12,s=Math.max(this.ouT[2]+3e-7*r,.01)*r/12,o=12e3*this.ouT[4]+(1-8e3*this.ouT[3]),u=Math.round(a*o+s*(1-o)*n),h=this.gCN(u);-1==h[0]?this.cf=pF:(i=this.cvC(h,t,r),p5js.drawingContext.fillStyle="rgb("+i[0]+","+i[1]+","+i[2]+")",this.cf=i,"rgba(0, 0, 0, 0.00)"===p5js.drawingContext.fillStyle?(p5js.drawingContext.fillStyle=`rgb(${pF[0]}, ${pF[1]}, ${pF[2]})`,this.cf=pF):pF=i);let l=4*(r*e*p5js.width+t*e),c=[p5js.pixels[l],p5js.pixels[l+1],p5js.pixels[l+2],p5js.pixels[l+3]];c[0]==this.cf[0]&&c[1]==this.cf[1]&&c[2]==this.cf[2]||p5js.drawingContext.fillRect(t*e,r*e,e,e)}mtT(){this.brain.mtT(.9)}think(){this.frame+=this.rate,5e-6*this.frame>15&&(this.frame=-5,crA.brain.mtT(.9));let t=[];t[0]=5e-6*this.frame-5;let r=this.brain.predict(t);this.ouT=r}update(){this.score++}}var pF;function pickOne(){let t=0,r=random(1);for(;r>0;)r-=svA[t].fitness,t++;t--;let e=svA[t],i=new Art(e.brain);return i.mtT(),i}function ccF(){let t=0;for(let r of svA)t+=r.score;for(let r of svA)r.fitness=r.score/t}function srand(t){return function(){var r=t+=1831565813;return r=Math.imul(r^r>>>15,1|r),(((r^=r+Math.imul(r^r>>>7,61|r))^r>>>14)>>>0)/4294967296}}const TOTAL=10;let crA,lastFill,rng,svA=[],cnt=0,artIndex=0;var pS=5,col="black";function windowResized(){pS=Math.max(Math.round(Math.min(1e3,windowWidth)/200),3),resizeCanvas(Math.min(1e3,Math.max(windowWidth,500)),Math.min(1e3,Math.max(windowHeight,500)))}function nextArt(p5){crA=arts.shift(),crA.update(),console.log(btoa(crA.brain.seed)),p5.redraw()}
+
+            function sketch(p5) {
+                p5.setup = function() {
+                    canvas = document.getElementsByTagName("canvas").item(0);
+                    arts=[];
+                    p5.pixelDensity(1),
+                    p5.colorMode(p5.RGB);
+                    var p5Canvas = p5.createCanvas(Math.min(1e3,Math.max(p5.windowWidth,500)),Math.min(1e3,Math.max(p5.windowHeight,500)));
+                    p5Canvas.parent("canvas");
+                    pS=Math.max(Math.round(Math.min(1e3,p5.windowWidth)/200),3);
+                    for(var t=0;t<TOTAL;t++)arts.push(new Art);
+                    p5.frameRate(10);
+                    nextArt(p5);
+                }
+                p5.draw = function() {
+                    p5.noStroke();
+                    p5.loadPixels();
+                    crA.think();
+                    for(var t=0;t<p5.height/pS;t++)for(var r=0;r<p5.width/pS;r++)crA.show(r,t,pS,p5);
+
+                    if (recording) {
+                        if (frames++ == 0) capturer.start();
+                        capturer.capture(canvas);
+                        infoSpan.textContent = recording ? "Recording (" + (frames) +  ")" : "\xa0";
+                    }
+                    if (document.activeElement !== frameInput) frameInput.value = crA.frame;
+                }
+                p5.keyPressed = function(){"z"===p5.key&&crA.brain.mtT(.1,p5),"d"===p5.key&&speedUp.click(),"a"===p5.key&&speedDown.click()}
+            }
+        </script>
+    </body>
+</html>
