@@ -105,7 +105,7 @@
             }
 
             // Axon ETH contract
-            var web3 = new Web3(new Web3.providers.HttpProvider("https://rpc.flashbots.net"));
+            var web3 = new Web3(new Web3.providers.HttpProvider("https://ethereum-rpc.publicnode.com"));
             var axons = new web3.eth.Contract([
             {
                 "name": "_tokenIdToAxonNumber", "type": "function", "stateMutability": "view",
